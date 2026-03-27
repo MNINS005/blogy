@@ -74,13 +74,14 @@ class BlogResponse(BaseModel):
 
 def compute_keyword_density(text: str, keyword: str) -> tuple[float, int]:
     words = re.findall(r'\b\w+\b', text.lower())
-    kw_words = keyword.lower().split()
-    count = 0
-    for i in range(len(words) - len(kw_words) + 1):
-        if words[i:i+len(kw_words)] == kw_words:
-            count += 1
+    
+    # 🔥 use flexible keyword matching
+    keyword = keyword.lower()
+    count = text.lower().count(keyword)
+
     density = (count / len(words) * 100) if words else 0
     return round(density, 2), count
+    
 
 def compute_readability(text: str) -> tuple[float, str]:
     """Flesch Reading Ease approximation"""
@@ -127,7 +128,7 @@ def compute_snippet_readiness(content: str) -> float:
     return min(100.0, score)
 
 def compute_keyword_placement(content: str, keyword: str) -> float:
-    kw = keyword.lower()
+    kw = keyword.split()[0].lower()  # use main keyword
     score = 0.0
     lines = content.split('\n')
     # In title (first heading)
@@ -238,19 +239,50 @@ def generate_seo_metrics(content: str, keyword: str) -> SEOMetrics:
 
 # ─── Blog Generation ──────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert SEO content strategist and blog writer. 
-You write high-ranking, GEO-optimized, conversion-focused blog posts.
-Always structure blogs with:
-- A compelling H1 title (use the focus keyword naturally)
-- An engaging intro paragraph (include keyword in first 100 words)
-- At least 4-5 H2 subheadings 
-- H3s under key sections
-- Bold text for important points
-- Bullet/numbered lists where helpful
-- A clear CTA section at the end
+SYSTEM_PROMPT = """You are an expert SEO content strategist and blog writer.
+
+Your goal is to generate high-ranking, GEO-optimized, and conversion-focused blog posts that are clear, engaging, and easy to read.
+
+---
+
+STRUCTURE REQUIREMENTS (must follow):
 - Use markdown formatting throughout
-Write naturally — avoid robotic, repetitive AI patterns. Vary sentence lengths.
-Include GEO context when specified. Target the given audience."""
+- Include a compelling H1 title (with the focus keyword naturally)
+- Write an engaging introduction (include keyword within first 100 words)
+- Include 4–5 well-structured H2 sections
+- Add H3 subheadings under key sections
+- Use bullet points or numbered lists where helpful
+- Highlight important points using bold text
+- End with a strong CTA section
+
+---
+
+WRITING STYLE (very important):
+- Use simple, clear English suitable for general readers
+- Keep sentences short (10–15 words on average)
+- Avoid complex vocabulary and jargon
+- Maintain a natural, human-like tone
+- Vary sentence structure to avoid repetition
+
+---
+
+SEO & CONTENT QUALITY:
+- Maintain natural keyword usage (no stuffing)
+- Ensure smooth flow and logical structure
+- Include practical value (examples, benefits, insights)
+- Write in a way that builds authority and trust
+
+---
+
+CONTEXT AWARENESS:
+- Include GEO-specific context when provided
+- Adapt tone and examples to the target audience
+
+---
+
+FINAL GOAL:
+The content should feel human-written, helpful, and optimized for both users and search engines — not robotic or overly repetitive.
+"""
 
 def build_blog_prompt(req: BlogRequest) -> str:
     return f"""Generate a complete, SEO-optimized blog post with these specifications:
@@ -262,17 +294,61 @@ Target Word Count: {req.word_count} words
 GEO Target: {req.geo_location}
 Include CTA: {req.include_cta}
 
-Requirements:
-1. Use the focus keyword in: title, first paragraph, at least 2 H2 headings, conclusion
-2. Keyword density should be around 1-1.5%
-3. Include LSI keywords naturally (variations and related terms)
-4. Structure for featured snippet eligibility (clear definitions, numbered steps, or concise tables)
-5. Add a compelling meta description at the END of the blog in this exact format:
-   META_DESCRIPTION: [your 155-char meta description here]
-6. Use GEO-specific context relevant to {req.geo_location}
-7. Make it conversion-focused — include statistics, benefits, and a strong CTA
-8. The blog should genuinely help the reader AND position the topic authoritatively
+REQUIREMENTS:
 
+HARD REQUIREMENTS (must follow strictly):
+1. Include the EXACT focus keyword in:
+   - Title (H1)
+   - First paragraph (within first 100 words)
+   - At least 2 H2 headings
+   - Conclusion
+
+2. Maintain keyword density between 1% and 1.5% naturally.
+
+3. Add a compelling meta description at the END in this format:
+   META_DESCRIPTION: [max 155 characters]
+
+4. Structure the blog using proper markdown:
+   - 1 H1
+   - 4–5 H2 headings
+   - H3 subheadings under key sections
+   - Bullet points or numbered lists where useful
+
+---
+
+SOFT SEO GUIDELINES (optimize but keep natural):
+5. Use LSI keywords and semantic variations naturally.
+
+6. Ensure featured snippet readiness:
+   - Include definitions, steps, or concise explanations
+   - Use structured formatting (lists/tables where useful)
+
+7. Include GEO-specific context relevant to {req.geo_location}.
+
+8. Maintain readability:
+   - Use short sentences (10–15 words)
+   - Prefer simple, clear English
+   - Avoid complex vocabulary
+
+9. Make content conversion-focused:
+   - Include benefits, use-cases, and at least 3 CTAs
+   - Examples: "Start now", "Try free", "Get started today"
+
+10. Write naturally:
+   - Avoid keyword stuffing
+   - Do not force repetition
+   - Balance exact keyword usage with readability
+
+---
+
+SELF-CHECK BEFORE FINAL OUTPUT:
+- Keyword density is between 1% and 1.5%
+- Keyword appears in all required positions
+- At least 4 H2 headings are present
+- Content is easy to read and natural
+- CTA appears at least 3 times
+
+If any condition is not met, improve the content before finalizing.
 Write the complete blog now:"""
 
 def extract_meta_description(content: str) -> tuple[str, str]:
